@@ -145,6 +145,7 @@ missing `splash` parameter, or GRUB.
 - **Plymouth port:** Pascal, November 2026. The QML splash was rewritten as a Plymouth script.
   Frames were extracted from the original GIF, cropped and pre-rendered at 1x/2x, a black
   variant was generated, and the password prompt and boot messages were added.
+- **Claude Code** For generating the docs, as lazy me needs to learn how to organize myself first. 
 
 Licensed under the **GNU General Public License v2 or (at your option) any later version**,
 like the original. See [LICENSE](LICENSE).
