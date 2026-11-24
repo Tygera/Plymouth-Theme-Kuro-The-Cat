@@ -1,0 +1,159 @@
+# Kuro — Plymouth port of the KDE splash screen "kuro"
+#
+# Based on:      kuro KDE splash by kartik, https://github.com/KartikSindura/kuro
+#                (itself based on the KDE Breeze splash, (C) 2014 Marco Martin)
+#                Artwork and animation from that project.
+# Plymouth port: Copyright (C) 2026 Pascal
+#                Modified November 2026: the QML splash was rewritten as a
+#                Plymouth script; frames were extracted from the GIF, cropped,
+#                and pre-rendered at 1x/2x; a black (OLED) variant was generated;
+#                a LUKS prompt and boot messages were added.
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation; either version 2 of the License, or (at your option)
+# any later version. See LICENSE.
+
+# ---------------------------------------------------------------- settings
+variant        = "cat";   # "cat" = #161616 background, "oled" = pure black
+scale_override = 0;       # 0 = automatic (by screen height), otherwise 1, 2, 3 ...
+
+# ---------------------------------------------------------------- setup
+if (variant == "oled") {
+    bg_r = 0; bg_g = 0; bg_b = 0;
+} else {
+    bg_r = 22 / 255; bg_g = 22 / 255; bg_b = 22 / 255;
+}
+Window.SetBackgroundTopColor(bg_r, bg_g, bg_b);
+Window.SetBackgroundBottomColor(bg_r, bg_g, bg_b);
+
+screen_w = Window.GetWidth();
+screen_h = Window.GetHeight();
+
+if (scale_override > 0) {
+    scale = scale_override;
+} else {
+    scale = Math.Int(screen_h / 720);
+    if (scale < 1) scale = 1;
+}
+
+# Frames are cropped from the 800x600 GIF; offset keeps the original position
+# (GIF centered on the screen). 1x and 2x are pre-rendered, because Image.Scale
+# at runtime blurs the edges and shifts the background color.
+frame_count = 111;
+frame_w = 200 * scale;
+frame_h = 294 * scale;
+frame_x = Math.Int(screen_w / 2 - 100 * scale);
+frame_y = Math.Int(screen_h / 2 - 204 * scale);
+
+if (scale == 1) set = "1x"; else set = "2x";
+for (i = 0; i < frame_count; i++) {
+    img = Image("frames/" + variant + "-" + set + "-" + i + ".png");
+    if (scale > 2) img = img.Scale(frame_w, frame_h);
+    frames[i] = img;
+}
+
+cat = Sprite(frames[0]);
+cat.SetPosition(frame_x, frame_y, 1);
+cat.SetOpacity(0);
+
+# Spinner: like the original, 200 px above the bottom edge
+spin_size = 36 * scale;
+spinner_image = Image("spinner.png").Scale(spin_size, spin_size);
+spinner = Sprite(spinner_image);
+spinner_x = Math.Int(screen_w / 2 - spin_size / 2);
+spinner_y = Math.Int(screen_h - 200 * scale);
+spinner.SetPosition(spinner_x, spinner_y, 2);
+spinner.SetOpacity(0);
+
+# ---------------------------------------------------------------- animation
+tick   = 0;      # refresh runs at 50 Hz, the GIF at 25 fps -> every 2nd tick
+frame  = 0;
+angle  = 0;
+fade   = 0;
+prompt_active = 0;
+
+fun refresh_callback() {
+    global.tick++;
+
+    # 1 s fade-in, like the KDE splash
+    if (global.fade < 1) {
+        global.fade += 0.02;
+        if (global.fade > 1) global.fade = 1;
+        cat.SetOpacity(global.fade);
+        if (!global.prompt_active) spinner.SetOpacity(global.fade);
+    }
+
+    if (global.tick % 2 == 0) {
+        global.frame = (global.frame + 1) % frame_count;
+        cat.SetImage(frames[global.frame]);
+    }
+
+    if (!global.prompt_active) {
+        # 1.5 s per revolution = 75 ticks
+        global.angle += 2 * Math.Pi / 75;
+        rotated = spinner_image.Rotate(global.angle);
+        spinner.SetImage(rotated);
+        spinner.SetX(spinner_x + Math.Int((spin_size - rotated.GetWidth()) / 2));
+        spinner.SetY(spinner_y + Math.Int((spin_size - rotated.GetHeight()) / 2));
+    }
+}
+Plymouth.SetRefreshFunction(refresh_callback);
+
+# ---------------------------------------------------------------- password prompt (LUKS)
+bullet_image = Image("bullet.png");
+if (scale != 1) bullet_image = bullet_image.Scale(12 * scale, 12 * scale);
+prompt_sprite = Sprite();
+bullets = [];
+
+fun clear_bullets() {
+    for (i = 0; global.bullets[i]; i++)
+        global.bullets[i].SetOpacity(0);
+}
+
+fun display_normal_callback() {
+    global.prompt_active = 0;
+    prompt_sprite.SetOpacity(0);
+    clear_bullets();
+    spinner.SetOpacity(global.fade);
+}
+
+fun display_password_callback(prompt, bullet_count) {
+    global.prompt_active = 1;
+    spinner.SetOpacity(0);
+
+    if (!prompt) prompt = "Passphrase";
+    text = Image.Text(prompt, 0.94, 0.94, 0.95, 1, "Sans " + 11 * scale);
+    prompt_sprite.SetImage(text);
+    prompt_sprite.SetPosition(Math.Int(screen_w / 2 - text.GetWidth() / 2), spinner_y - 10 * scale, 3);
+    prompt_sprite.SetOpacity(1);
+
+    gap = 18 * scale;
+    max_bullets = 32;
+    if (bullet_count > max_bullets) bullet_count = max_bullets;
+    start_x = Math.Int(screen_w / 2 - (bullet_count * gap) / 2);
+    for (i = 0; i < max_bullets; i++) {
+        if (!global.bullets[i]) {
+            global.bullets[i] = Sprite(bullet_image);
+            global.bullets[i].SetOpacity(0);
+        }
+        if (i < bullet_count) {
+            global.bullets[i].SetPosition(start_x + i * gap, spinner_y + 24 * scale, 3);
+            global.bullets[i].SetOpacity(1);
+        } else {
+            global.bullets[i].SetOpacity(0);
+        }
+    }
+}
+
+Plymouth.SetDisplayNormalFunction(display_normal_callback);
+Plymouth.SetDisplayPasswordFunction(display_password_callback);
+
+# ---------------------------------------------------------------- messages
+message_sprite = Sprite();
+fun message_callback(text) {
+    img = Image.Text(text, 0.6, 0.6, 0.6, 1, "Sans " + 9 * scale);
+    message_sprite.SetImage(img);
+    message_sprite.SetPosition(Math.Int(screen_w / 2 - img.GetWidth() / 2), screen_h - 60 * scale, 4);
+}
+Plymouth.SetMessageFunction(message_callback);

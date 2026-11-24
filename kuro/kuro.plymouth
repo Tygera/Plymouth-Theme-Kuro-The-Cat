@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Kuro
+Description=Wake up your pc with Kuro the cat (port of the KDE splash a2n.kuro)
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/kuro
+ScriptFile=/usr/share/plymouth/themes/kuro/kuro.script
