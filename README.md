@@ -22,8 +22,10 @@ KDE splash screens only run *after* login, so they can't do this. Plymouth can, 
     so you don't get a grey halo around the cat.
 
 Tested on Arch Linux with a MacBook (Retina, 12-inch, 2017): systemd initramfs,
-systemd-boot, Intel graphics. Other distributions should work the same way, but
+grub2, Intel graphics. Other distributions should work the same way, but
 the steps below are for Arch.
+
+**The Macbook had - in my case - no sound or apple logo when booting without a NVRAM Reset with systemd-boot; only grub2 worked. Overriding Efivars didn't work**
 
 ## Installation
 
